@@ -1,10 +1,10 @@
 #pragma once
 
-#include <QtCore/QDate>
-#include <QtCore/QJsonObject>
-#include <QtCore/QDebug>
+#include <QDate>
 
 #include <optional>
+#include <vector>
+
 
 namespace Calculator
 {
@@ -86,9 +86,3 @@ struct Results
 
 } // namespace Calculator
 
-QString uiPrice(double price,
-                int decimals = 2,
-                QLocale locale = QLocale(QLocale::Russian, QLocale::AnyCountry),
-                bool removeZeroDecimalsPart = true);
-
-QDebug operator<<(QDebug debug, const Calculator::Payment & payment);

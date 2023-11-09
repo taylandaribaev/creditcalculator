@@ -1,7 +1,48 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QtCore/QRegularExpression>
 
 #include "Calculator/CreditCalculator.h"
+
+QString uiPrice(double price,
+                int decimals = 2,
+                QLocale locale = QLocale(QLocale::Russian, QLocale::AnyCountry),
+                bool removeZeroDecimalsPart = true)
+{
+    QString result = locale.toString(price, 'f', decimals);
+
+    if (removeZeroDecimalsPart)
+    {
+        result.remove(QRegularExpression("[\\.,]0+$"));
+    }
+
+    return result;
+}
+
+QDebug operator<<(QDebug debug, const Calculator::Payment &payment)
+{
+    QDebugStateSaver saver(debug);
+
+    QString payment_type = "PaymentType::Usual";
+    switch (payment.type) {
+    case Calculator::Payment::PaymentType::ForPayment:
+        payment_type = "PaymentType::ForPayment";
+        break;
+    case Calculator::Payment::PaymentType::ForTerm:
+        payment_type = "PaymentType::ForTerm";
+        break;
+    case Calculator::Payment::PaymentType::Usual:
+        break;
+    }
+
+    debug << "Date:" << payment.date
+          << "Before payment:" << uiPrice(payment.sum_before_payment) << "\t"
+          << "Value:" << uiPrice(payment.value) << "\t"
+          << "Percents:" << uiPrice(payment.percents) << "\t"
+          << "Payment type:" << payment_type;
+
+    return debug;
+}
 
 int main(int argc, char *argv[])
 {
@@ -21,43 +62,25 @@ int main(int argc, char *argv[])
     info.start_date = QDate(2022, 12, 20);
     info.credit_term = 60;
 
-    Calculator::Payments additional_payments;
-    for (int i = 1; i < 11; ++i)
     {
-        additional_payments.push_back(Calculator::Payment(36490, info.start_date.addMonths(i), Calculator::Payment::PaymentType::ForTerm));
-    }
-
-//    additional_payments.push_back(Calculator::Payment(2000000, QDate(2023, 12, 20), Calculator::Payment::PaymentType::ForTerm));
-    additional_payments.push_back(Calculator::Payment(400000, QDate(2023, 12, 20), Calculator::Payment::PaymentType::ForPayment));
-
-//    for (int i = 0; i < 10; ++i)
-//    {
-//        additional_payments.push_back(Calculator::Payment(86490, additional_payments.back().date.addMonths(1), Calculator::Payment::PaymentType::ForTerm));
-//    }
-
-    double discount = 0;
-
-    {
+        info.type = Calculator::CreditInfo::CreditType::Differencial;
         auto results = Calculator::CreditCalculator::calculate(info);
+        if (results) {
+            qDebug() << "Overpayment:" << uiPrice(results->percents_summ) << "Count of usual payments: " << results->payments.size();
 
-        qDebug() << "Overpayment:" << uiPrice(results->percents_summ) << "Count of usual payments: " << results->payments.size();
-        discount = results->percents_summ;
-    }
-
-    {
-        auto results = Calculator::CreditCalculator::calculate(info, additional_payments);
-        int payments_count = 0;
-        for (auto payment : results->payments)
-        {
-            qDebug() << payment;
-            if (payment.type == Calculator::Payment::PaymentType::Usual)
+            for (auto payment : results->payments)
             {
-                payments_count++;
+                qDebug() << payment;
             }
         }
-        discount -= results->percents_summ;
-        qDebug() << "Overpayment:" << uiPrice(results->percents_summ) << "Count of usual payments: " << payments_count;
-        qDebug() << "Discount after additional payments:" << uiPrice(discount);
+    }
+
+    {
+        info.type = Calculator::CreditInfo::CreditType::Fixed;
+        auto results = Calculator::CreditCalculator::calculate(info);
+        if (results) {
+            qDebug() << "Overpayment:" << uiPrice(results->percents_summ) << "Count of usual payments: " << results->payments.size();
+        }
     }
 
     return app.exec();
