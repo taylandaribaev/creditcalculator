@@ -1,37 +1,12 @@
 #include "CreditCalculator.h"
 
+#include <math.h>
+
 namespace Calculator
 {
 
-// Differential payments
-namespace DifferencialPayments
+namespace
 {
-
-ResultsPtr calculate(const CreditInfo & info)
-{
-
-
-    return nullptr;
-}
-
-}
-
-/// Fixed payments
-namespace FixedPayments
-{
-
-double payment_value(double summ, double percent, int credit_term)
-{
-    double annuitet_month_rate = percent / 12;
-
-    double annuitet_coef = annuitet_month_rate * pow(1.0 + annuitet_month_rate, credit_term) / (pow(1 + annuitet_month_rate, credit_term) - 1);
-    return annuitet_coef * summ;
-}
-
-double payment_value(const CreditInfo & info)
-{
-    return payment_value(info.total_summ, info.percent, info.credit_term);
-}
 
 std::vector<Payment> prepare_payments(const CreditInfo & info, std::optional<Payments> additional_payments)
 {
@@ -61,6 +36,92 @@ std::vector<Payment> prepare_payments(const CreditInfo & info, std::optional<Pay
     });
 
     return std::move(payments);
+}
+
+}
+
+// Differential payments
+namespace DifferencialPayments
+{
+
+ResultsPtr calculate(const CreditInfo & info, std::optional<Payments> additional_payments)
+{
+    ResultsPtr results (new Results);
+    results->info = info;
+    results->percents_summ = 0;
+
+    auto payments = prepare_payments(info, additional_payments);
+
+    double total_summ = info.total_summ;
+    auto previews_date = info.start_date;
+
+    int usual_payment = 0;
+
+    for (Payment payment : payments)
+    {
+        auto date = payment.date;
+        double percents_per_day = total_summ * info.percent / date.daysInYear();
+        int days = previews_date.daysTo(date);
+        previews_date = date;
+        double percents_value = percents_per_day * days;
+
+        switch (payment.type) {
+        case Payment::PaymentType::Usual:
+            payment.value = (total_summ / (info.credit_term - usual_payment)) + percents_value;
+            total_summ -= payment.value;
+            usual_payment++;
+            break;
+        case Payment::PaymentType::ForPayment:
+        case Payment::PaymentType::ForTerm:
+            total_summ += percents_value - payment.value;
+            break;
+        }
+        payment.percents = percents_value;
+        results->payments.push_back(payment);
+    }
+
+
+
+
+//    for (int i = 0; i < info.credit_term; ++i)
+//    {
+//        auto date = info.start_date.addMonths(i);
+
+
+
+
+//        auto payment = (total_summ / (info.credit_term - i)) + percents_value;
+
+//        results->payments.push_back(Payment(payment, date, Payment::PaymentType::Usual, percents_value, total_summ));
+//        total_summ -= payment;
+//    }
+
+    results->percents_summ = 0;
+    for (const auto payment : results->payments)
+    {
+        results->percents_summ += payment.percents;
+    }
+
+    return results;
+}
+
+}
+
+/// Fixed payments
+namespace FixedPayments
+{
+
+double payment_value(double summ, double percent, int credit_term)
+{
+    double annuitet_month_rate = percent / 12;
+
+    double annuitet_coef = annuitet_month_rate * std::pow(1.0 + annuitet_month_rate, credit_term) / (std::pow(1 + annuitet_month_rate, credit_term) - 1);
+    return annuitet_coef * summ;
+}
+
+double payment_value(const CreditInfo & info)
+{
+    return payment_value(info.total_summ, info.percent, info.credit_term);
 }
 
 ResultsPtr calculate(const CreditInfo & info, std::optional<Payments> additional_payments)
@@ -138,7 +199,7 @@ ResultsPtr CreditCalculator::calculate(const CreditInfo & info, std::optional<Pa
     case CreditInfo::CreditType::Fixed:
         return FixedPayments::calculate(info, additional_payments);
     default:
-        break;
+        return DifferencialPayments::calculate(info, additional_payments);
     }
 
     return nullptr;
