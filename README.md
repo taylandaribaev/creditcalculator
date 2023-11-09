@@ -11,8 +11,6 @@ Written on C++
 
 ## TODO
 
-- Add differential payments support
-
 - Add JSON serializer/deserializer
 
 - Move scr to lib
